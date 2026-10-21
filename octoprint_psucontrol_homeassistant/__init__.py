@@ -9,6 +9,7 @@ import json
 import threading
 import time
 
+import flask
 import octoprint.plugin
 import requests
 
@@ -37,7 +38,9 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                          octoprint.plugin.ShutdownPlugin,
                          octoprint.plugin.RestartNeedingPlugin,
                          octoprint.plugin.TemplatePlugin,
-                         octoprint.plugin.SettingsPlugin):
+                         octoprint.plugin.SettingsPlugin,
+                         octoprint.plugin.SimpleApiPlugin,
+                         octoprint.plugin.AssetPlugin):
 
     def __init__(self):
         self.config = dict()
@@ -386,6 +389,78 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         # Our templates don't interpolate any server-side Jinja2 variables
         # (pure knockout.js bindings), so autoescaping is a safe no-op here.
         return True
+
+    def get_assets(self):
+        return dict(
+            js=["js/psucontrol_homeassistant_settings.js"]
+        )
+
+    #
+    # SimpleApiPlugin: settings-page "Test Connection" button
+    #
+
+    def is_api_protected(self):
+        return True
+
+    def is_api_adminonly(self):
+        return True
+
+    def get_api_commands(self):
+        return dict(
+            testConnection=['address', 'api_key', 'entity_id']
+        )
+
+    def on_api_command(self, command, data):
+        if command == 'testConnection':
+            return self._test_connection(data)
+
+    def _test_connection(self, data):
+        address = (data.get('address') or '').rstrip('/')
+        entity_id = data.get('entity_id') or ''
+        api_key = data.get('api_key') or ''
+        verify_certificate = bool(data.get('verify_certificate', True))
+
+        if not address:
+            return flask.jsonify(success=False, message="Address is required.")
+        if not entity_id:
+            return flask.jsonify(success=False, message="Entity ID is required.")
+
+        # The form may still hold the masked placeholder if the user didn't
+        # change it; fall back to the currently saved token in that case.
+        if not api_key or api_key == API_KEY_MASK:
+            api_key = self._settings.get(['api_key'])
+        if not api_key:
+            return flask.jsonify(success=False, message="No API key configured.")
+
+        if '.' not in entity_id:
+            entity_id = 'switch.' + entity_id
+
+        url = address + '/api/states/' + entity_id
+        headers = dict(Authorization='Bearer ' + api_key)
+
+        try:
+            response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+        except requests.exceptions.Timeout:
+            return flask.jsonify(success=False, message="Timed out waiting for a response. Check the address.")
+        except (requests.exceptions.InvalidURL, requests.exceptions.ConnectionError):
+            return flask.jsonify(success=False, message="Unable to connect. Check the address.")
+        except Exception as e:
+            self._logger.exception("Exception while testing Home Assistant connection")
+            return flask.jsonify(success=False, message="Unexpected error: {}".format(e))
+
+        if response.status_code == 401:
+            return flask.jsonify(success=False, message="401 Unauthorized. Check the access token.")
+        if response.status_code == 404:
+            return flask.jsonify(success=False, message="404 Not Found. Check the Entity ID.")
+        if response.status_code != 200:
+            return flask.jsonify(success=False, message="Home Assistant returned HTTP {}.".format(response.status_code))
+
+        try:
+            state = response.json().get('state')
+        except ValueError:
+            return flask.jsonify(success=False, message="Home Assistant returned an unexpected response.")
+
+        return flask.jsonify(success=True, message="Connected. Current state: {}.".format(state), state=state)
 
     def get_update_information(self):
         return dict(
