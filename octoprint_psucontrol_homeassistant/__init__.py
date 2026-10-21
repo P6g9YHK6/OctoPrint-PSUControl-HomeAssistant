@@ -382,6 +382,11 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             dict(type="settings", custom_bindings=False)
         ]
 
+    def is_template_autoescaped(self):
+        # Our templates don't interpolate any server-side Jinja2 variables
+        # (pure knockout.js bindings), so autoescaping is a safe no-op here.
+        return True
+
     def get_update_information(self):
         return dict(
             psucontrol_homeassistant=dict(
