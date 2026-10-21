@@ -10,6 +10,11 @@ $(function () {
         return;
     }
 
+    $("#psucontrol_ha_goto_psucontrol").on("click", function (e) {
+        e.preventDefault();
+        $('a[href="#settings_plugin_psucontrol"]').tab("show");
+    });
+
     $openSecurityBtn.on("click", function (e) {
         e.preventDefault();
 

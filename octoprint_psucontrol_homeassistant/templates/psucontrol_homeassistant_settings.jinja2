@@ -15,7 +15,7 @@
         <div class="controls">
             <input type="text" class="input" id="psucontrol_ha_address" data-bind="value: settings.plugins.psucontrol_homeassistant.address">
             <button type="button" class="btn" id="psucontrol_ha_open_security_btn" style="margin-left: 5px;">Create a token...</button>
-            <span class="help-block">The IP address or hostname of your HomeAssistant server. e.g. http://ip:port or http://hostname:port. Do not include a trailing slash /. "Create a token..." opens this address's Profile &gt; Security page in a new tab, where Home Assistant's own "Create Token" button lives.</span>
+            <span class="help-block">The IP address or hostname of your HomeAssistant server. e.g. http://ip:port or http://hostname:port. Do not include a trailing slash /. "Create a token..." opens this address's Profile &gt; Security page in a new tab, where Home Assistant's own "Create Token" button lives. The default <code>homeassistant.local</code> hostname needs mDNS (avahi/Bonjour) support on this machine to resolve; if it doesn't work, use Home Assistant's IP address instead.</span>
         </div>
     </div>
     <div class="control-group">
@@ -74,5 +74,6 @@
 <!-- /ko -->
 <!-- ko if: settings.plugins.psucontrol.autoOn() -->
 <span class="help-inline label label-important">Please DISABLE <u>Automatically turn PSU ON</u> in the PSU Control settings, it will otherwise ruin your prints when HA becomes unavailable.<br>
+<a href="#" id="psucontrol_ha_goto_psucontrol">Go to PSU Control settings</a><br>
 See <a href="https://github.com/P6g9YHK6/OctoPrint-PSUControl-HomeAssistant#setup" target="_blank">setup</a> for more info.</span>
 <!-- /ko -->
