@@ -32,6 +32,7 @@ except ImportError:
 
 RELEVANT_ENTITY_DOMAINS = ('switch', 'light', 'input_boolean', 'script', 'scene', 'group')
 REQUEST_TIMEOUT = 10
+CIRCUIT_BREAKER_COOLDOWN = 30
 WS_RECONNECT_MIN_DELAY = 2
 WS_RECONNECT_MAX_DELAY = 60
 API_KEY_MASK = "*" * 8
@@ -56,6 +57,8 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         self._ws_connected = False
         self._ws_stop = threading.Event()
         self._ws_restart_lock = threading.Lock()
+        self._last_failure_time = None
+        self._failure_lock = threading.Lock()
 
     def get_settings_defaults(self):
         return dict(
@@ -152,6 +155,18 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     #
 
     def send(self, cmd, data=None):
+        with self._failure_lock:
+            if self._last_failure_time is not None:
+                elapsed = time.time() - self._last_failure_time
+                if elapsed < CIRCUIT_BREAKER_COOLDOWN:
+                    self._logger.debug(
+                        "Skipping request to Home Assistant ({}s left in cooldown after a recent connection "
+                        "failure), to avoid stalling on every call while it's unreachable.".format(
+                            int(CIRCUIT_BREAKER_COOLDOWN - elapsed)
+                        )
+                    )
+                    return None
+
         address = self.config.get('address', '').rstrip('/')
         if not address:
             self._logger.error("Home Assistant address is not configured.")
@@ -173,14 +188,22 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                 response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.Timeout:
             self._logger.error("Timed out waiting for a response from Home Assistant.")
+            self._trip_breaker()
         except (
                 requests.exceptions.InvalidURL,
                 requests.exceptions.ConnectionError
         ):
             self._logger.error("Unable to communicate with server. Check settings.")
+            self._trip_breaker()
         except Exception:
             self._logger.exception("Exception while making API call")
+            self._trip_breaker()
         else:
+            # Any response at all means Home Assistant is reachable, even if
+            # the request itself was rejected (401/404) - only a connection
+            # failure should trip the breaker.
+            self._reset_breaker()
+
             if data is not None:
                 self._logger.debug("cmd={}, data={}, status_code={}, text={}".format(cmd, data, response.status_code, response.text))
             else:
@@ -194,6 +217,14 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                 response = None
 
         return response
+
+    def _trip_breaker(self):
+        with self._failure_lock:
+            self._last_failure_time = time.time()
+
+    def _reset_breaker(self):
+        with self._failure_lock:
+            self._last_failure_time = None
 
     def _normalized_entity_id(self):
         _entity_id = self.config.get('entity_id', '')
