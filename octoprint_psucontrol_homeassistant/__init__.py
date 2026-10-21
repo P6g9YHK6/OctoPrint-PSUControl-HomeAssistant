@@ -7,12 +7,19 @@ __copyright__ = "Copyright (C) 2021 Erik de Keijzer - Released under terms of th
 
 import json
 import threading
+import time
 
 import octoprint.plugin
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+try:
+    import urllib3
+    from urllib3.exceptions import InsecureRequestWarning
+except ImportError:
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    import requests.packages.urllib3 as urllib3
+
+urllib3.disable_warnings(InsecureRequestWarning)
 
 try:
     import websocket
@@ -23,6 +30,7 @@ except ImportError:
 REQUEST_TIMEOUT = 10
 WS_RECONNECT_MIN_DELAY = 2
 WS_RECONNECT_MAX_DELAY = 60
+
 
 class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                          octoprint.plugin.ShutdownPlugin,
@@ -81,16 +89,28 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     def on_shutdown(self):
         self._stop_websocket()
 
-    def send(self, cmd, data=None):
-        url = self.config['address'] + '/api' + cmd
+    #
+    # REST
+    #
 
-        headers = dict(Authorization='Bearer ' + self.config['api_key'])
+    def send(self, cmd, data=None):
+        address = self.config.get('address', '').rstrip('/')
+        if not address:
+            self._logger.error("Home Assistant address is not configured.")
+            return None
+
+        api_key = self.config.get('api_key', '')
+        if not api_key:
+            self._logger.warning("No Home Assistant API key configured.")
+
+        url = address + '/api' + cmd
+        headers = dict(Authorization='Bearer ' + api_key)
+        verify_certificate = self.config.get('verify_certificate', True)
 
         response = None
-        verify_certificate = self.config['verify_certificate']
         try:
-            if data:
-                response = requests.post(url, headers=headers, data=data, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+            if data is not None:
+                response = requests.post(url, headers=headers, json=data, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
             else:
                 response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.Timeout:
@@ -103,7 +123,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         except Exception:
             self._logger.exception("Exception while making API call")
         else:
-            if data:
+            if data is not None:
                 self._logger.debug("cmd={}, data={}, status_code={}, text={}".format(cmd, data, response.status_code, response.text))
             else:
                 self._logger.debug("cmd={}, status_code={}, text={}".format(cmd, response.status_code, response.text))
@@ -117,32 +137,6 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
         return response
 
-    def change_psu_state(self, state):
-        _entity_id = self.config['entity_id']
-        _domainsplit = _entity_id.find('.')
-        if _domainsplit < 0:
-            _domain = 'switch'
-            _entity_id = _domain + '.' + _entity_id
-        else:
-            _domain = _entity_id[:_domainsplit]
-            # Groups don't have turn_on/off/toggle services
-            if _domain == 'group': _domain = 'homeassistant'
-
-        if state:
-            cmd = '/services/' + _domain + '/turn_' + state
-        else:
-            cmd = '/services/' + _domain + '/toggle'
-        data = '{"entity_id":"' + _entity_id + '"}'
-        self.send(cmd, data)
-
-    def turn_psu_on(self):
-        self._logger.debug("Switching PSU On")
-        self.change_psu_state('on')
-
-    def turn_psu_off(self):
-        self._logger.debug("Switching PSU Off")
-        self.change_psu_state('off')
-
     def _normalized_entity_id(self):
         _entity_id = self.config.get('entity_id', '')
         if not _entity_id:
@@ -151,10 +145,33 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             return 'switch.' + _entity_id
         return _entity_id
 
+    def change_psu_state(self, turn_on):
+        _entity_id = self._normalized_entity_id()
+        if not _entity_id:
+            self._logger.error("Home Assistant entity ID is not configured.")
+            return
+
+        _domain = _entity_id.split('.')[0]
+        # Groups don't have turn_on/off services
+        if _domain == 'group':
+            _domain = 'homeassistant'
+
+        cmd = '/services/' + _domain + '/turn_' + ('on' if turn_on else 'off')
+        self.send(cmd, dict(entity_id=_entity_id))
+
+    def turn_psu_on(self):
+        self._logger.debug("Switching PSU On")
+        self.change_psu_state(True)
+
+    def turn_psu_off(self):
+        self._logger.debug("Switching PSU Off")
+        self.change_psu_state(False)
+
     def _get_psu_state_rest(self):
         """Returns True/False for a determined state, or None if the state could not be determined."""
         _entity_id = self._normalized_entity_id()
         if not _entity_id:
+            self._logger.error("Home Assistant entity ID is not configured.")
             return None
 
         response = self.send('/states/' + _entity_id)
@@ -164,6 +181,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         try:
             data = response.json()
         except ValueError:
+            self._logger.error("Unable to parse Home Assistant response as JSON.")
             return None
 
         try:
@@ -323,6 +341,10 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             with self._state_lock:
                 self._last_known_state = (new_state.get('state') == 'on')
             return
+
+    #
+    # OctoPrint plugin hooks
+    #
 
     def on_settings_save(self, data):
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
