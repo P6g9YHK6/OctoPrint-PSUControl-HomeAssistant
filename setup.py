@@ -8,9 +8,9 @@ plugin_package = "octoprint_%s" % plugin_identifier
 plugin_name = "OctoPrint-PSUControl-HomeAssistant"
 plugin_version = "1.0.6"
 plugin_description = "Adds Home Assistant support to OctoPrint-PSUControl as a sub-plugin"
-plugin_author = "Erik de Keijzer"
+plugin_author = "Erik de Keijzer, maintained fork by P6g9YHK6"
 plugin_author_email = "erik.de.keijzer@gmail.com"
-plugin_url = "https://github.com/edekeijzer/OctoPrint-PSUControl-HomeAssistant"
+plugin_url = "https://github.com/P6g9YHK6/OctoPrint-PSUControl-HomeAssistant"
 plugin_license = "AGPLv3"
 plugin_additional_data = []
 

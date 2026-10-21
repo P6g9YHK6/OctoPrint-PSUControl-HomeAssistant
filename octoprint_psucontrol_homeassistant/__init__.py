@@ -11,6 +11,8 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+REQUEST_TIMEOUT = 10
+
 class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                          octoprint.plugin.RestartNeedingPlugin,
                          octoprint.plugin.TemplatePlugin,
@@ -62,9 +64,11 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         verify_certificate = self.config['verify_certificate']
         try:
             if data:
-                response = requests.post(url, headers=headers, data=data, verify=verify_certificate)
+                response = requests.post(url, headers=headers, data=data, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
             else:
-                response = requests.get(url, headers=headers, verify=verify_certificate)
+                response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+        except requests.exceptions.Timeout:
+            self._logger.error("Timed out waiting for a response from Home Assistant.")
         except (
                 requests.exceptions.InvalidURL,
                 requests.exceptions.ConnectionError
@@ -161,12 +165,12 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
                 # version check: github repository
                 type="github_release",
-                user="edekeijzer",
+                user="P6g9YHK6",
                 repo="OctoPrint-PSUControl-HomeAssistant",
                 current=self._plugin_version,
 
                 # update method: pip w/ dependency links
-                pip="https://github.com/edekeijzer/OctoPrint-PSUControl-HomeAssistant/archive/{target_version}.zip"
+                pip="https://github.com/P6g9YHK6/OctoPrint-PSUControl-HomeAssistant/archive/{target_version}.zip"
             )
         )
 
