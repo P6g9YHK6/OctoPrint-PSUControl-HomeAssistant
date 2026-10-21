@@ -36,11 +36,12 @@ API_KEY_MASK = "*" * 8
 
 class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
                          octoprint.plugin.ShutdownPlugin,
-                         octoprint.plugin.RestartNeedingPlugin,
                          octoprint.plugin.TemplatePlugin,
                          octoprint.plugin.SettingsPlugin,
                          octoprint.plugin.SimpleApiPlugin,
                          octoprint.plugin.AssetPlugin):
+    # AssetPlugin already inherits RestartNeedingPlugin; don't also list it
+    # explicitly above or the MRO becomes inconsistent.
 
     def __init__(self):
         self.config = dict()
