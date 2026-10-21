@@ -4,10 +4,23 @@ $(function () {
     var $browseBtn = $("#psucontrol_ha_browse_btn");
     var $entitySelect = $("#psucontrol_ha_entity_select");
     var $entityInput = $("#psucontrol_ha_entity_id");
+    var $openSecurityBtn = $("#psucontrol_ha_open_security_btn");
 
     if (!$btn.length) {
         return;
     }
+
+    $openSecurityBtn.on("click", function (e) {
+        e.preventDefault();
+
+        var address = ($("#psucontrol_ha_address").val() || "").replace(/\/+$/, "");
+        if (!address) {
+            $result.text("Enter the address first.").removeClass("text-success").addClass("text-error");
+            return;
+        }
+
+        window.open(address + "/profile/security", "_blank");
+    });
 
     $btn.on("click", function (e) {
         e.preventDefault();

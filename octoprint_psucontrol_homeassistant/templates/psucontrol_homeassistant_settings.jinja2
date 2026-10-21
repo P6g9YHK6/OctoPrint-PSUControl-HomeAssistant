@@ -14,7 +14,8 @@
         <label class="control-label">Address</label>
         <div class="controls">
             <input type="text" class="input" id="psucontrol_ha_address" data-bind="value: settings.plugins.psucontrol_homeassistant.address">
-            <span class="help-block">The IP address or hostname of your HomeAssistant server. e.g. http://ip:port or http://hostname:port. Do not include a trailing slash /</span>
+            <button type="button" class="btn" id="psucontrol_ha_open_security_btn" style="margin-left: 5px;">Create a token...</button>
+            <span class="help-block">The IP address or hostname of your HomeAssistant server. e.g. http://ip:port or http://hostname:port. Do not include a trailing slash /. "Create a token..." opens this address's Profile &gt; Security page in a new tab, where Home Assistant's own "Create Token" button lives.</span>
         </div>
     </div>
     <div class="control-group">
