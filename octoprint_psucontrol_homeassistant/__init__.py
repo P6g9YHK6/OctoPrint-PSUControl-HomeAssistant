@@ -5,7 +5,9 @@ __author__ = "Erik de Keijzer <erik.de.keijzer@gmail.com>"
 __license__ = "GNU Affero General Public License http://www.gnu.org/licenses/agpl.html"
 __copyright__ = "Copyright (C) 2021 Erik de Keijzer - Released under terms of the AGPLv3 License"
 
+import base64
 import json
+import os
 import threading
 import time
 
@@ -33,6 +35,7 @@ REQUEST_TIMEOUT = 10
 WS_RECONNECT_MIN_DELAY = 2
 WS_RECONNECT_MAX_DELAY = 60
 API_KEY_MASK = "*" * 8
+OBFUSCATED_PREFIX = "enc:v1:"
 
 
 class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
@@ -78,8 +81,56 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             elif type(v) == bool:
                 v = self._settings.get_boolean([k])
 
+            if k == 'api_key':
+                v = self._deobfuscate(v)
+                self.config[k] = v
+                self._logger.debug("api_key: {}".format('<redacted>' if v else ''))
+                continue
+
             self.config[k] = v
             self._logger.debug("{}: {}".format(k, v))
+
+    #
+    # Lightweight local obfuscation of the stored token. This is NOT real
+    # encryption (the key lives right next to the ciphertext on disk) - it
+    # just keeps the token from being literal cleartext in config.yaml
+    # backups or screen shares. Values from before this existed are plain
+    # strings without the prefix and are read back as-is.
+    #
+
+    def _get_or_create_local_key(self):
+        folder = self.get_plugin_data_folder()
+        path = os.path.join(folder, '.key')
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                return f.read()
+
+        key = os.urandom(32)
+        with open(path, 'wb') as f:
+            f.write(key)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        return key
+
+    @staticmethod
+    def _xor(data, key):
+        return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+
+    def _obfuscate(self, plaintext):
+        if not plaintext:
+            return plaintext
+        key = self._get_or_create_local_key()
+        encrypted = self._xor(plaintext.encode('utf-8'), key)
+        return OBFUSCATED_PREFIX + base64.b64encode(encrypted).decode('ascii')
+
+    def _deobfuscate(self, stored):
+        if not stored or not stored.startswith(OBFUSCATED_PREFIX):
+            return stored
+        key = self._get_or_create_local_key()
+        encrypted = base64.b64decode(stored[len(OBFUSCATED_PREFIX):])
+        return self._xor(encrypted, key).decode('utf-8')
 
     def on_startup(self, host, port):
         psucontrol_helpers = self._plugin_manager.get_helpers("psucontrol")
@@ -363,6 +414,9 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         if isinstance(data, dict) and data.get('api_key') == API_KEY_MASK:
             data = dict(data)
             del data['api_key']
+        elif isinstance(data, dict) and data.get('api_key'):
+            data = dict(data)
+            data['api_key'] = self._obfuscate(data['api_key'])
 
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
         self.reload_settings()
@@ -422,7 +476,9 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     def _resolve_api_key(self, data):
         api_key = data.get('api_key') or ''
         if not api_key or api_key == API_KEY_MASK:
-            api_key = self._settings.get(['api_key'])
+            # self.config holds the already-deobfuscated token; the raw
+            # setting on disk may be obfuscated and isn't usable directly.
+            api_key = self.config.get('api_key', '')
         return api_key
 
     def _get_devices(self, data):
