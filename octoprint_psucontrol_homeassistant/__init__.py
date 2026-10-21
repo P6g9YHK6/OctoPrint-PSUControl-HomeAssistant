@@ -59,6 +59,11 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         self._ws_restart_lock = threading.Lock()
         self._last_failure_time = None
         self._failure_lock = threading.Lock()
+        # A shared session reuses the underlying connection (keep-alive)
+        # across calls to the same host instead of paying a fresh TCP/TLS
+        # handshake every poll. Safe to share across threads since we never
+        # mutate session-level state (headers/auth) after creation.
+        self._session = requests.Session()
 
     def get_settings_defaults(self):
         return dict(
@@ -149,6 +154,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
     def on_shutdown(self):
         self._stop_websocket()
+        self._session.close()
 
     #
     # REST
@@ -183,9 +189,9 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         response = None
         try:
             if data is not None:
-                response = requests.post(url, headers=headers, json=data, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+                response = self._session.post(url, headers=headers, json=data, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
             else:
-                response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+                response = self._session.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.Timeout:
             self._logger.error("Timed out waiting for a response from Home Assistant.")
             self._trip_breaker()
@@ -526,7 +532,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         headers = dict(Authorization='Bearer ' + api_key)
 
         try:
-            response = requests.get(address + '/api/states', headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+            response = self._session.get(address + '/api/states', headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.Timeout:
             return flask.jsonify(success=False, message="Timed out waiting for a response. Check the address.")
         except (requests.exceptions.InvalidURL, requests.exceptions.ConnectionError):
@@ -581,7 +587,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         headers = dict(Authorization='Bearer ' + api_key)
 
         try:
-            response = requests.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+            response = self._session.get(url, headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
         except requests.exceptions.Timeout:
             return flask.jsonify(success=False, message="Timed out waiting for a response. Check the address.")
         except (requests.exceptions.InvalidURL, requests.exceptions.ConnectionError):
