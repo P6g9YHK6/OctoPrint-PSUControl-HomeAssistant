@@ -49,6 +49,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     # explicitly above or the MRO becomes inconsistent.
 
     def __init__(self):
+        super().__init__()
         self.config = dict()
         self._state_lock = threading.Lock()
         self._last_known_state = None
