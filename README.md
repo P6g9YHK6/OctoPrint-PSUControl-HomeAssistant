@@ -4,7 +4,7 @@
 # OctoPrint PSU Control - Home Assistant
 Adds Home Assistant support to [OctoPrint-PSUControl](https://github.com/kantlivelong/OctoPrint-PSUControl) as a sub-plugin
 
-<img width="731" height="801" alt="image" src="https://github.com/user-attachments/assets/af28b4c6-cf13-4058-9d9e-dcbb3900d147" />
+<img width="707" height="909" alt="image" src="https://github.com/user-attachments/assets/8bfdf8d7-2532-4435-ba4c-e08439578e9d" />
 
 ## Setup
 - ~~Install the plugin using Plugin Manager from Settings,~~ or from this repository's URL
