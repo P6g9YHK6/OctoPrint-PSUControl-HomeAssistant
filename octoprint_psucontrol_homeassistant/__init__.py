@@ -62,7 +62,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
     def get_settings_defaults(self):
         return dict(
-            address = '',
+            address = 'http://homeassistant.local:8123',
             api_key = '',
             entity_id = '',
             verify_certificate = True,
