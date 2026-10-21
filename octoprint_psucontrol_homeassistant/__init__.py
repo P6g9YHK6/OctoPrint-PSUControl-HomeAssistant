@@ -28,6 +28,7 @@ try:
 except ImportError:
     HAS_WEBSOCKET = False
 
+RELEVANT_ENTITY_DOMAINS = ('switch', 'light', 'input_boolean', 'script', 'scene', 'group')
 REQUEST_TIMEOUT = 10
 WS_RECONNECT_MIN_DELAY = 2
 WS_RECONNECT_MAX_DELAY = 60
@@ -408,17 +409,73 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
     def get_api_commands(self):
         return dict(
-            testConnection=['address', 'api_key', 'entity_id']
+            testConnection=['address', 'api_key', 'entity_id'],
+            getDevices=['address', 'api_key']
         )
 
     def on_api_command(self, command, data):
         if command == 'testConnection':
             return self._test_connection(data)
+        elif command == 'getDevices':
+            return self._get_devices(data)
+
+    def _resolve_api_key(self, data):
+        api_key = data.get('api_key') or ''
+        if not api_key or api_key == API_KEY_MASK:
+            api_key = self._settings.get(['api_key'])
+        return api_key
+
+    def _get_devices(self, data):
+        address = (data.get('address') or '').rstrip('/')
+        verify_certificate = bool(data.get('verify_certificate', True))
+
+        if not address:
+            return flask.jsonify(success=False, message="Address is required.")
+
+        api_key = self._resolve_api_key(data)
+        if not api_key:
+            return flask.jsonify(success=False, message="No API key configured.")
+
+        headers = dict(Authorization='Bearer ' + api_key)
+
+        try:
+            response = requests.get(address + '/api/states', headers=headers, verify=verify_certificate, timeout=REQUEST_TIMEOUT)
+        except requests.exceptions.Timeout:
+            return flask.jsonify(success=False, message="Timed out waiting for a response. Check the address.")
+        except (requests.exceptions.InvalidURL, requests.exceptions.ConnectionError):
+            return flask.jsonify(success=False, message="Unable to connect. Check the address.")
+        except Exception as e:
+            self._logger.exception("Exception while listing Home Assistant entities")
+            return flask.jsonify(success=False, message="Unexpected error: {}".format(e))
+
+        if response.status_code == 401:
+            return flask.jsonify(success=False, message="401 Unauthorized. Check the access token.")
+        if response.status_code != 200:
+            return flask.jsonify(success=False, message="Home Assistant returned HTTP {}.".format(response.status_code))
+
+        try:
+            states = response.json()
+        except ValueError:
+            return flask.jsonify(success=False, message="Home Assistant returned an unexpected response.")
+
+        devices = []
+        for entry in states:
+            entity_id = entry.get('entity_id', '')
+            domain = entity_id.split('.')[0] if '.' in entity_id else ''
+            if domain not in RELEVANT_ENTITY_DOMAINS:
+                continue
+            devices.append(dict(
+                entity_id=entity_id,
+                friendly_name=(entry.get('attributes') or {}).get('friendly_name', entity_id),
+                state=entry.get('state'),
+            ))
+        devices.sort(key=lambda d: d['entity_id'])
+
+        return flask.jsonify(success=True, devices=devices)
 
     def _test_connection(self, data):
         address = (data.get('address') or '').rstrip('/')
         entity_id = data.get('entity_id') or ''
-        api_key = data.get('api_key') or ''
         verify_certificate = bool(data.get('verify_certificate', True))
 
         if not address:
@@ -426,10 +483,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         if not entity_id:
             return flask.jsonify(success=False, message="Entity ID is required.")
 
-        # The form may still hold the masked placeholder if the user didn't
-        # change it; fall back to the currently saved token in that case.
-        if not api_key or api_key == API_KEY_MASK:
-            api_key = self._settings.get(['api_key'])
+        api_key = self._resolve_api_key(data)
         if not api_key:
             return flask.jsonify(success=False, message="No API key configured.")
 
