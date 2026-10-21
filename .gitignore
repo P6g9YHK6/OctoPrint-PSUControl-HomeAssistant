@@ -3,3 +3,5 @@ OctoPrint_*.egg-info
 *.swp
 __pycache__
 *.zip
+build/
+dist/
