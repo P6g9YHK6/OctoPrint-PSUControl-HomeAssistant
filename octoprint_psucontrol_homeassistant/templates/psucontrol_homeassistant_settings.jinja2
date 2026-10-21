@@ -44,6 +44,22 @@
             <!-- /ko -->
         </div>
     </div>
+    <div class="control-group">
+        <div class="controls">
+            <label class="checkbox">
+            <input type="checkbox" data-bind="checked: settings.plugins.psucontrol_homeassistant.use_websocket"> Use WebSocket for live updates
+            </label>
+            <span class="help-block">Subscribes to state changes over a persistent WebSocket instead of polling over REST on every sense interval. Falls back to REST automatically if the connection drops. Requires the <code>websocket-client</code> Python package.</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <div class="controls">
+            <label class="checkbox">
+            <input type="checkbox" data-bind="checked: settings.plugins.psucontrol_homeassistant.connection_lost_action"> Return last known state if Home Assistant is unreachable
+            </label>
+            <span class="help-block">When checked, a temporary connection failure returns the last confirmed state instead of reporting the PSU as off.</span>
+        </div>
+    </div>
 </form>
 <!-- /ko -->
 <!-- ko if: settings.plugins.psucontrol.autoOn() -->
