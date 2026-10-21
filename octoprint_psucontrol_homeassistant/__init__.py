@@ -30,6 +30,7 @@ except ImportError:
 REQUEST_TIMEOUT = 10
 WS_RECONNECT_MIN_DELAY = 2
 WS_RECONNECT_MAX_DELAY = 60
+API_KEY_MASK = "*" * 8
 
 
 class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
@@ -346,7 +347,17 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     # OctoPrint plugin hooks
     #
 
+    def on_settings_load(self):
+        data = octoprint.plugin.SettingsPlugin.on_settings_load(self)
+        if data.get('api_key'):
+            data['api_key'] = API_KEY_MASK
+        return data
+
     def on_settings_save(self, data):
+        if isinstance(data, dict) and data.get('api_key') == API_KEY_MASK:
+            data = dict(data)
+            del data['api_key']
+
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
         self.reload_settings()
         self._stop_websocket()
