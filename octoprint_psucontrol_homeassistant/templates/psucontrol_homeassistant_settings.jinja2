@@ -28,7 +28,9 @@
         <label class="control-label">Entity ID</label>
         <div class="controls">
             <input type="text" class="input" id="psucontrol_ha_entity_id" data-bind="value: settings.plugins.psucontrol_homeassistant.entity_id">
-            <span class="help-block">The ID of the entity you'd like to control. Can be anything supporting the turn_on/turn_off services, but a switch would make the most sense.</span>
+            <button type="button" class="btn" id="psucontrol_ha_browse_btn" style="margin-left: 5px;">Browse...</button>
+            <select id="psucontrol_ha_entity_select" class="input" style="display: none; margin-top: 5px;"></select>
+            <span class="help-block">The ID of the entity you'd like to control. Can be anything supporting the turn_on/turn_off services, but a switch would make the most sense. "Browse..." lists switches/lights/scripts/scenes/groups/input_booleans from the address and token currently in this form.</span>
         </div>
     </div>
     <div class="control-group">
