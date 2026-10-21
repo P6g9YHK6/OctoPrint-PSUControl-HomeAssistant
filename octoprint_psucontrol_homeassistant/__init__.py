@@ -47,6 +47,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         self._ws_thread = None
         self._ws_connected = False
         self._ws_stop = threading.Event()
+        self._ws_restart_lock = threading.Lock()
 
     def get_settings_defaults(self):
         return dict(
@@ -360,8 +361,15 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
         octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
         self.reload_settings()
-        self._stop_websocket()
-        self._start_websocket_if_enabled()
+        # Restarting the WebSocket can block for a few seconds waiting for the
+        # old connection to close; do it off the request thread so saving
+        # settings doesn't hang the UI.
+        threading.Thread(target=self._restart_websocket, name="psucontrol_homeassistant_ws_restart", daemon=True).start()
+
+    def _restart_websocket(self):
+        with self._ws_restart_lock:
+            self._stop_websocket()
+            self._start_websocket_if_enabled()
 
     def get_settings_version(self):
         return 1
