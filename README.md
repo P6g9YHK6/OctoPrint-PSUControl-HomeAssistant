@@ -1,5 +1,5 @@
 > [!NOTE]
-> This is a maintained fork of [edekeijzer/OctoPrint-PSUControl-HomeAssistant](https://github.com/edekeijzer/OctoPrint-PSUControl-HomeAssistant), which is no longer maintained upstream. Fixes a bug where a stalled request to Home Assistant could hang the sensing loop forever, adds optional WebSocket-based live state updates, and adds a "return last known state" option for brief connection drops.
+> This is a maintained fork of [edekeijzer/OctoPrint-PSUControl-HomeAssistant](https://github.com/edekeijzer/OctoPrint-PSUControl-HomeAssistant), which is no longer maintained upstream.
 
 # OctoPrint PSU Control - Home Assistant
 Adds Home Assistant support to OctoPrint-PSUControl as a sub-plugin
