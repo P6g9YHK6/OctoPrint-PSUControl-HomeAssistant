@@ -45,6 +45,7 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             api_key = '',
             entity_id = '',
             verify_certificate = True,
+            connection_lost_action = False,
             use_websocket = True,
         )
 
@@ -151,26 +152,24 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
         return _entity_id
 
     def _get_psu_state_rest(self):
+        """Returns True/False for a determined state, or None if the state could not be determined."""
         _entity_id = self._normalized_entity_id()
         if not _entity_id:
-            return False
+            return None
 
         response = self.send('/states/' + _entity_id)
         if not response:
-            return False
-        data = response.json()
+            return None
 
-        status = None
         try:
-            status = (data['state'] == 'on')
+            data = response.json()
+        except ValueError:
+            return None
+
+        try:
+            return data['state'] == 'on'
         except KeyError:
-            pass
-
-        if status == None:
-            self._logger.error("Unable to determine status. Check settings.")
-            status = False
-
-        return status
+            return None
 
     def get_psu_state(self):
         if self.config.get('use_websocket') and self._ws_connected:
@@ -180,6 +179,15 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
             # Connected but no event observed yet, fall through to a one-off REST lookup.
 
         status = self._get_psu_state_rest()
+
+        if status is None:
+            if self.config.get('connection_lost_action'):
+                with self._state_lock:
+                    if self._last_known_state is not None:
+                        self._logger.warning("Unable to determine status from Home Assistant, returning last known state.")
+                        return self._last_known_state
+            self._logger.error("Unable to determine status. Check settings.")
+            return False
 
         with self._state_lock:
             self._last_known_state = status
@@ -293,8 +301,9 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
 
             # Seed state immediately so there's no gap before the first event arrives.
             status = self._get_psu_state_rest()
-            with self._state_lock:
-                self._last_known_state = status
+            if status is not None:
+                with self._state_lock:
+                    self._last_known_state = status
             return
 
         if msg_type == 'event':
