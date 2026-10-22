@@ -1,3 +1,44 @@
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "OctoPrint-PSUControl-HomeAssistant"
+version = "1.3.0"
+description = "Adds Home Assistant support to OctoPrint-PSUControl as a sub-plugin"
+authors = [
+    {name = "Erik de Keijzer", email = "erik.de.keijzer@gmail.com"},
+    {name = "P6g9YHK6"}
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "AGPL-3.0-or-later"
+
+requires-python = ">=3,<4"
+
+# any additional requirements (besides OctoPrint) should be listed here
+dependencies = [
+    "OctoPrint",
+    "websocket-client>=1.0"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+    "octoprint_psucontrol_homeassistant",
+    "octoprint_psucontrol_homeassistant.*"
+]
+
+[tool.setuptools.package-data]
+octoprint_psucontrol_homeassistant = [
+    "static/**/*",
+    "templates/**/*",
+    "translations/**/*"
+]
+
+[project.entry-points."octoprint.plugin"]
+psucontrol_homeassistant = "octoprint_psucontrol_homeassistant"
+
+[project.urls]
+Homepage = "https://github.com/P6g9YHK6/OctoPrint-PSUControl-HomeAssistant"

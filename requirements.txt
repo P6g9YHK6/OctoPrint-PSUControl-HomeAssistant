@@ -1,2 +1,0 @@
-OctoPrint
-websocket-client>=1.0
