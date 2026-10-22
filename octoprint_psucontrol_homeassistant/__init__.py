@@ -442,6 +442,12 @@ class PSUControl_HomeAssistant(octoprint.plugin.StartupPlugin,
     # OctoPrint plugin hooks
     #
 
+    def get_settings_restricted_paths(self):
+        # Belt-and-suspenders alongside the masking below: OctoPrint serves
+        # plugin settings over the REST API to anyone with a session,
+        # not just admins, unless told otherwise.
+        return dict(admin=[["api_key"]])
+
     def on_settings_load(self):
         data = octoprint.plugin.SettingsPlugin.on_settings_load(self)
         if data.get('api_key'):
